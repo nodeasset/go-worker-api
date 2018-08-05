@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/streadway/amqp"
 
@@ -36,10 +38,10 @@ func failOnError(err error, msg string) {
 
 // create a new item
 func CreateEvent(w http.ResponseWriter, r *http.Request) {
-	type Body string
-	//var body Body
-	body := "test me" // Body(r.Body)
-	err := ch.Publish(
+
+	body, err := ioutil.ReadAll(r.Body)
+
+	err = ch.Publish(
 		"exchange.events", // exchange
 		"events",          // routing key
 		false,             // mandatory
@@ -56,8 +58,18 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 // main function to boot up everything
 func main() {
+
+	conf := "config.json"
+
+	if os.Args[1] == "development" {
+		//"/home/earl/go/src/go-worker-api/config.json"
+		conf = os.Args[2]
+	} else {
+		conf = "config.json"
+	}
+
 	configuration := Configuration{}
-	err := gonfig.GetConf("/home/earl/go/src/go-worker-api/config.json", &configuration)
+	err := gonfig.GetConf(conf, &configuration)
 	if err != nil {
 		panic(err)
 	}
@@ -78,10 +90,6 @@ func main() {
 	defer ch.Close()
 
 	router := mux.NewRouter()
-	//router.HandleFunc("/people", GetPeople).Methods("GET")
-	//router.HandleFunc("/people/{id}", GetPerson).Methods("GET")
-	//router.HandleFunc("/people/{id}", CreatePerson).Methods("POST")
-	//router.HandleFunc("/people/{id}", DeletePerson).Methods("DELETE")
 
 	router.HandleFunc("/events", CreateEvent).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8000", router))
