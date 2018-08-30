@@ -1,14 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+	"os/exec"
 
 	"github.com/streadway/amqp"
-
-	"github.com/tkanos/gonfig"
 
 	"github.com/gorilla/mux"
 )
@@ -36,6 +35,27 @@ func failOnError(err error, msg string) {
 	}
 }
 
+func Health(w http.ResponseWriter, r *http.Request) {
+
+	w.Write([]byte("I am healthy"))
+}
+
+func ExecCommand(w http.ResponseWriter, r *http.Request) {
+
+	body, err := ioutil.ReadAll(r.Body)
+
+	cmdPrep := string(body)
+	cmdOutput := exec.Command("bash", "-c", cmdPrep)
+	stdout, err := cmdOutput.CombinedOutput()
+	if err != nil {
+		fmt.Println(err)
+		//w.Write(string(err})
+	}
+	//fmt.Println(stdout)
+	fmt.Printf("%s\n", stdout)
+	w.Write([]byte(stdout))
+}
+
 // create a new item
 func CreateEvent(w http.ResponseWriter, r *http.Request) {
 
@@ -59,38 +79,43 @@ func CreateEvent(w http.ResponseWriter, r *http.Request) {
 // main function to boot up everything
 func main() {
 
-	conf := "config.json"
+	//conf := "config.json"
 
-	if os.Args[1] == "development" {
-		//"/home/earl/go/src/go-worker-api/config.json"
-		conf = os.Args[2]
-	} else {
-		conf = "config.json"
-	}
+	/*	if os.Args[1] == "development" {
+			//"/home/earl/go/src/go-worker-api/config.json"
+			conf = os.Args[2]
+		} else {
+			conf = "config.json"
+		}
 
-	configuration := Configuration{}
-	err := gonfig.GetConf(conf, &configuration)
-	if err != nil {
-		panic(err)
-	}
+		configuration := Configuration{}
+		err := gonfig.GetConf(conf, &configuration)
+		if err != nil {
+			panic(err)
+		}*/
 
-	user := configuration.User
-	password := configuration.Password
-	host := configuration.Host
-	port := configuration.Port
+	/*
+		Uncomment this section to use rabbitmq
+		user := configuration.User
+		password := configuration.Password
+		host := configuration.Host
+		port := configuration.Port
 
-	connstring := "amqp://" + user + ":" + password + "@" + host + ":" + port + "/"
+		connstring := "amqp://" + user + ":" + password + "@" + host + ":" + port + "/"
 
-	conn, err := amqp.Dial(connstring)
-	failOnError(err, "Failed to connect to RabbitMQ")
-	defer conn.Close()
+		conn, err := amqp.Dial(connstring)
+		failOnError(err, "Failed to connect to RabbitMQ")
+		defer conn.Close()
 
-	ch, err = conn.Channel()
-	failOnError(err, "Failed to open a channel")
-	defer ch.Close()
+		ch, err = conn.Channel()
+		failOnError(err, "Failed to open a channel")
+		defer ch.Close()
+	*/
 
 	router := mux.NewRouter()
 
 	router.HandleFunc("/events", CreateEvent).Methods("POST")
+	router.HandleFunc("/exec", ExecCommand).Methods("POST")
+	router.HandleFunc("/health", Health).Methods("GET")
 	log.Fatal(http.ListenAndServe(":8000", router))
 }
